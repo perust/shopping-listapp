@@ -103,6 +103,11 @@
       transition: all 0.2s;
     }
 
+    li .checkbox:focus-visible {
+      outline: 2px solid #4361ee;
+      outline-offset: 2px;
+    }
+
     li.checked .checkbox {
       background: #4361ee;
       border-color: #4361ee;
@@ -221,6 +226,15 @@
       }
     });
 
+    listEl.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      const checkbox = e.target.closest('.checkbox');
+      if (!checkbox) return;
+      e.preventDefault();
+      const li = checkbox.closest('li');
+      if (li) toggleItem(Number(li.dataset.index));
+    });
+
     function render() {
       listEl.innerHTML = '';
       items.forEach((item, i) => {
@@ -230,6 +244,10 @@
 
         const checkbox = document.createElement('div');
         checkbox.className = 'checkbox';
+        checkbox.setAttribute('role', 'checkbox');
+        checkbox.setAttribute('aria-checked', item.checked ? 'true' : 'false');
+        checkbox.setAttribute('aria-label', `${item.name} 완료 표시`);
+        checkbox.setAttribute('tabindex', '0');
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'name';
@@ -238,6 +256,7 @@
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = '\u00D7';
+        deleteBtn.setAttribute('aria-label', `${item.name} 삭제`);
 
         li.append(checkbox, nameSpan, deleteBtn);
         listEl.appendChild(li);
