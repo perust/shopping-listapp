@@ -1,2 +1,4 @@
 .env
 .claude/
+index_pdf.html
+__pycache__/
