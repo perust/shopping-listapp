@@ -106,7 +106,81 @@
     .input-row {
       display: flex;
       gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .tag-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
       margin-bottom: 24px;
+    }
+
+    .tag-input {
+      width: 130px;
+      flex-shrink: 0;
+      padding: 8px 12px;
+      background: var(--card);
+      color: var(--text-body);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .tag-input:focus {
+      border-color: var(--accent);
+    }
+
+    .pending-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    /* 아직 아이템에 붙기 전, 다음에 추가할 때 함께 들어갈 태그 */
+    .pending-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 5px 4px 10px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 999px;
+      font-size: 13px;
+    }
+
+    .pending-tag button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      padding: 0;
+      background: none;
+      border: none;
+      border-radius: 50%;
+      color: inherit;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0.6;
+      transition: opacity 0.2s, background 0.2s, color 0.2s;
+    }
+
+    .pending-tag button:hover {
+      opacity: 1;
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .pending-tag button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+      opacity: 1;
     }
 
     .input-row input {
@@ -483,6 +557,12 @@
       <button type="button" id="addBtn">추가</button>
     </div>
 
+    <div class="tag-row">
+      <input type="text" class="tag-input" id="tagInput"
+             placeholder="태그 입력" autocomplete="off" aria-label="태그 입력 (스페이스 또는 Enter로 추가)" />
+      <div class="pending-tags" id="pendingTags"></div>
+    </div>
+
     <div class="stats-row">
       <span class="stats" id="stats"></span>
       <button type="button" class="clear-btn" id="clearBtn" hidden></button>
@@ -581,6 +661,8 @@
 
     const input = document.getElementById('itemInput');
     const addBtn = document.getElementById('addBtn');
+    const tagInput = document.getElementById('tagInput');
+    const pendingTagsEl = document.getElementById('pendingTags');
     const clearBtn = document.getElementById('clearBtn');
     const statusEl = document.getElementById('status');
     const listEl = document.getElementById('list');
@@ -616,7 +698,8 @@
 
     let items = [];
     let statusTimer = null;
-    let activeTag = '';   // 빈 문자열이면 전체 보기
+    let activeTag = '';       // 빈 문자열이면 전체 보기
+    let pendingTags = [];     // 다음에 추가할 아이템에 붙을 태그
 
     // ── 저장 ──────────────────────────────────────────────────────────────
 
@@ -693,14 +776,117 @@
       }
     }
 
+    // ── 태그 입력 ─────────────────────────────────────────────────────────
+
+    function addPendingTag(raw) {
+      const clean = String(raw).replace(/^#+/, '').trim().slice(0, 20);
+      if (!clean || pendingTags.includes(clean)) return;
+      pendingTags.push(clean);
+      renderPendingTags();
+    }
+
+    function removePendingTag(tag) {
+      pendingTags = pendingTags.filter((t) => t !== tag);
+      renderPendingTags();
+    }
+
+    function renderPendingTags() {
+      pendingTagsEl.innerHTML = '';
+      pendingTags.forEach((tag) => {
+        const chip = document.createElement('span');
+        chip.className = 'pending-tag';
+        chip.append(tag);
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.dataset.tag = tag;
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `${tag} 태그 빼기`);
+        chip.appendChild(remove);
+
+        pendingTagsEl.appendChild(chip);
+      });
+    }
+
+    function commitTagInput() {
+      const value = tagInput.value.trim();
+      if (!value) return;
+      value.split(/\s+/).forEach(addPendingTag);
+      tagInput.value = '';
+    }
+
+    pendingTagsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      removePendingTag(btn.dataset.tag);
+      tagInput.focus();
+    });
+
+    // 스페이스는 keydown이 아니라 값에 들어온 뒤에 처리한다.
+    // 한글 조합 중에는 스페이스가 조합을 확정하는 데 먼저 쓰이기 때문이다.
+    tagInput.addEventListener('input', () => {
+      if (!/\s/.test(tagInput.value)) return;
+      const parts = tagInput.value.split(/\s+/);
+      const rest = parts.pop();   // 마지막 조각은 아직 입력 중이다
+      parts.forEach(addPendingTag);
+      tagInput.value = rest;
+    });
+
+    let tagEnterCommittedComposition = false;
+
+    tagInput.addEventListener('keydown', (e) => {
+      // 빈 칸에서 지우기를 누르면 방금 만든 태그부터 거둬들인다.
+      if (e.key === 'Backspace' && tagInput.value === '' && pendingTags.length > 0) {
+        removePendingTag(pendingTags[pendingTags.length - 1]);
+        return;
+      }
+      if (e.key !== 'Enter') return;
+      if (e.isComposing || e.keyCode === 229) {
+        tagEnterCommittedComposition = true;
+        return;
+      }
+      tagEnterCommittedComposition = false;
+      commitTagInput();
+    });
+
+    tagInput.addEventListener('keyup', (e) => {
+      if (e.key !== 'Enter' || !tagEnterCommittedComposition) return;
+      tagEnterCommittedComposition = false;
+      commitTagInput();
+    });
+
+    // 아이템 칸에서 '#태그 '까지 치면 그 자리에서 칩으로 옮긴다.
+    input.addEventListener('input', () => {
+      let value = input.value;
+      let match;
+      let moved = false;
+      while ((match = value.match(/#([^\s#]+)\s/))) {
+        addPendingTag(match[1]);
+        value = value.replace(match[0], ' ');
+        moved = true;
+      }
+      if (moved) input.value = value.replace(/\s{2,}/g, ' ').replace(/^\s+/, '');
+    });
+
     // ── 목록 조작 ─────────────────────────────────────────────────────────
 
     function addItem() {
-      const { name, tags } = parseInput(input.value);
-      if (!name) return;
+      const parsed = parseInput(input.value);
+      if (!parsed.name) {
+        // 태그만 만들어 두고 이름을 안 적으면 아무 일도 안 일어나 보이므로 알려 준다.
+        if (pendingTags.length > 0 || parsed.tags.length > 0) {
+          setStatus('아이템 이름을 입력해 주세요.', true);
+        }
+        return;
+      }
+
+      const name = parsed.name;
+      const tags = normalizeTags([...pendingTags, ...parsed.tags]);
       const id = items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
       items.push({ id, name, checked: false, tags });
       input.value = '';
+      pendingTags = [];
+      renderPendingTags();
 
       // 필터가 켜져 있는데 새 항목이 거기 안 걸리면 방금 넣은 게 안 보인다. 전체로 되돌린다.
       if (activeTag && !tags.includes(activeTag)) activeTag = '';
