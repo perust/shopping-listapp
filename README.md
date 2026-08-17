@@ -136,7 +136,8 @@ NVIDIA Nemotron 계열 `:free` 모델 6종. 프록시 없이 동작하지만 **�
 - 완료 항목 일괄 삭제
 - 전체/완료 아이템 수 표시
 - LocalStorage에 데이터 유지 (기본 동작, 네트워크 불필요)
-- Supabase로 목록 내보내기 / 가져오기 (기기 간 이동용, 누를 때만 동작)
+- 로그인 후 Supabase로 목록 내보내기 / 가져오기 (기기 간 이동용, 누를 때만 동작)
+- 계정별 목록 분리 — RLS로 본인 행만 접근 가능
 - 한글 IME 입력 호환 (macOS·Windows 모두 Enter 한 번에 추가)
 - 다크/라이트 테마, 키보드 접근성, 모바일 대응 단일 페이지 UI
 
@@ -164,7 +165,8 @@ python3 -m http.server 8000
 - CSS
 - Vanilla JavaScript
 - LocalStorage API
-- Supabase JS SDK (내보내기/가져오기를 처음 누를 때만 동적 로드)
+- Supabase Auth + Postgres RLS
+- Supabase JS SDK (`클라우드 동기화`를 처음 누를 때만 동적 로드)
 
 ### 데이터 저장
 
@@ -172,26 +174,27 @@ python3 -m http.server 8000
 
 ### 기기 간 이동 — 내보내기 / 가져오기
 
-Supabase는 저장소가 아니라 **기기 사이에서 목록을 옮기는 통로**로만 씁니다. 화면 아래 두 버튼을 누를 때만 통신합니다.
+Supabase는 저장소가 아니라 **기기 사이에서 목록을 옮기는 통로**로만 씁니다. 화면 아래 `클라우드 동기화`를 누르면 그때 SDK를 내려받고 로그인 상태를 확인합니다.
 
 | 버튼 | 동작 |
 |---|---|
-| 클라우드로 내보내기 | 지금 목록으로 클라우드를 **통째로 교체**합니다 (기존 클라우드 목록은 사라짐) |
-| 클라우드에서 가져오기 | 클라우드 목록으로 이 브라우저를 **통째로 교체**합니다 (기존 로컬 목록은 사라짐) |
+| 클라우드로 내보내기 | 지금 목록으로 내 클라우드 목록을 **통째로 교체** |
+| 클라우드에서 가져오기 | 내 클라우드 목록으로 이 브라우저를 **통째로 교체** |
 
 양쪽 다 덮어쓰기이므로 버튼 자리에서 한 번 더 확인을 받습니다. 진행 상황과 결과는 제목 아래에 표시되고, 실패하면 같은 자리에 빨간 글씨로 알려 줍니다.
 
 내보내기는 **새 행을 먼저 넣고 기존 행을 나중에 지우는** 순서로 동작합니다. 중간에 실패해도 목록이 사라지는 대신 중복이 남을 뿐이라, 다시 내보내면 복구됩니다.
 
-### Supabase 설정
+### 로그인과 접근 통제
 
-**연결 정보는 소스에 넣지 않습니다.** 이 페이지는 공개 URL로 서비스되므로, 키를 파일에 박아 두면 누구나 목록을 읽거나 덮어쓸 수 있기 때문입니다.
+동기화하려면 이메일·비밀번호로 로그인해야 합니다. **목록은 계정별로 완전히 분리**되어 다른 사람의 목록은 조회조차 되지 않습니다.
 
-대신 화면 아래 `클라우드 연결 설정`에서 프로젝트 URL과 publishable(anon) 키를 넣습니다. 입력값은 **그 브라우저의 LocalStorage에만** 저장되고 어디로도 전송되지 않으며, `연결` 버튼을 누르면 실제로 조회가 되는지 먼저 확인한 뒤에 저장합니다. `연결 해제`를 누르면 연결 정보만 지워지고 목록은 남습니다.
+소스에 들어 있는 키는 **publishable 키**로, 브라우저 노출을 전제로 만들어진 공개용 키입니다. 접근 통제는 키가 아니라 RLS 정책이 담당합니다.
 
-설정하지 않은 방문자에게는 연결 설정 버튼만 보이고, 앱은 완전한 로컬 전용으로 동작합니다.
+- 로그인하지 않은 상태(`anon`)에는 테이블 권한 자체가 없어 조회·삽입·삭제가 모두 `401 permission denied`입니다.
+- 로그인한 뒤에도 `user_id = auth.uid()` 조건에 맞는 **자기 행만** 보이고 고칠 수 있습니다.
 
-넣는 키는 반드시 **publishable(anon) 키**여야 합니다. 브라우저 노출을 전제로 만들어진 키이고, 실제 접근 통제는 RLS 정책이 담당합니다. secret 키는 절대 넣지 마세요.
+secret 키는 절대 넣지 마세요. 그 키는 RLS를 우회합니다.
 
 쓸 프로젝트에는 아래 SQL을 미리 실행해 두어야 합니다.
 
@@ -200,21 +203,28 @@ create table public.shopping_items (
   id bigint generated always as identity primary key,
   name text not null,
   checked boolean not null default false,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade
 );
 
 create index shopping_items_created_at_idx on public.shopping_items (created_at);
+create index shopping_items_user_id_idx on public.shopping_items (user_id);
 
 alter table public.shopping_items enable row level security;
 
-create policy shopping_items_anon_all
-  on public.shopping_items for all to anon
-  using (true) with check (true);
+create policy shopping_items_owner
+  on public.shopping_items for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
-grant select, insert, update, delete on public.shopping_items to anon;
-revoke truncate, references, trigger on public.shopping_items from anon, authenticated;
+revoke all on public.shopping_items from anon;
+grant select, insert, update, delete on public.shopping_items to authenticated;
 ```
 
-마지막 `revoke`가 중요합니다. `TRUNCATE`는 RLS를 우회하므로, 남겨 두면 공개 키만 가지고도 테이블 전체를 비울 수 있습니다.
+`user_id`는 컬럼 기본값 `auth.uid()`가 채우므로 클라이언트가 따로 보내지 않습니다.
 
-로그인 없이 쓰는 구조라 이 정책은 키를 가진 사람 누구에게나 읽기/쓰기를 허용합니다. 개인 학습용 전제이며, 잠그려면 Supabase Auth를 붙이고 정책을 `auth.uid()` 기준으로 바꿔야 합니다.
+`revoke all ... from anon`이 중요합니다. RLS 정책만으로도 막히지만, 권한까지 걷어내면 `TRUNCATE`처럼 **RLS를 우회하는 명령**까지 함께 막힙니다.
+
+대시보드에서 **Authentication → URL Configuration → Site URL**을 배포 주소로 맞춰야 가입 확인 메일의 링크가 앱으로 돌아옵니다.
+
+혼자 쓰는 앱이라면 본인 가입을 마친 뒤 **Sign In / Providers → Allow new users to sign up**을 꺼서 남이 가입하지 못하게 막는 편이 좋습니다.
