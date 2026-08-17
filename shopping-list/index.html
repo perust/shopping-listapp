@@ -56,10 +56,40 @@
       max-width: 480px;
     }
 
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
     h1 {
       font-size: 28px;
       color: var(--text);
-      margin-bottom: 6px;
+    }
+
+    /* 저장 위치를 한눈에 알리는 상시 라벨. 일시적인 안내는 아래 .status가 맡는다. */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--card);
+      color: var(--text-muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
     }
 
     .status {
@@ -369,7 +399,10 @@
 </head>
 <body>
   <div class="container">
-    <h1>쇼핑 리스트</h1>
+    <div class="topbar">
+      <h1>쇼핑 리스트</h1>
+      <span class="badge">로컬 저장중</span>
+    </div>
     <div class="status" id="status"></div>
 
     <div class="input-row">
@@ -468,7 +501,8 @@
     const STORAGE_KEY = 'shoppingList';
     const TRANSFER_KEY = 'shoppingListTransfer';
 
-    const DEFAULT_STATUS = '이 브라우저에 저장됩니다';
+    // 저장 위치는 우상단 '로컬 저장중' 라벨이 상시로 알리므로, 이 줄은 일시 안내에만 쓴다.
+    const DEFAULT_STATUS = '';
 
     const input = document.getElementById('itemInput');
     const addBtn = document.getElementById('addBtn');
