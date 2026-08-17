@@ -54,10 +54,33 @@
       max-width: 480px;
     }
 
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
     h1 {
       font-size: 28px;
       color: var(--text);
-      margin-bottom: 6px;
+    }
+
+    .account {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .account-email {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 150px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .status {
@@ -109,6 +132,15 @@
 
     .input-row button:hover {
       background: var(--accent-hover);
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
     }
 
     .stats-row {
@@ -245,11 +277,21 @@
       border-top: 1px solid var(--border);
     }
 
+    .sync-label {
+      font-size: 13px;
+      color: var(--text-faint);
+      margin-bottom: 10px;
+    }
+
     .sync-actions,
     .sync-answers {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .sync-actions + .sync-label {
+      margin-top: 16px;
     }
 
     .sync-btn {
@@ -301,7 +343,7 @@
       width: 100%;
       padding: 9px 12px;
       margin-bottom: 8px;
-      background: var(--card);
+      background: var(--bg);
       color: var(--text-body);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -318,8 +360,32 @@
 </head>
 <body>
   <div class="container">
-    <h1>쇼핑 리스트</h1>
+    <div class="topbar">
+      <h1>쇼핑 리스트</h1>
+      <div class="account">
+        <button type="button" class="sync-btn" id="loginBtn">로그인</button>
+        <span class="account-email" id="accountEmail" hidden></span>
+        <button type="button" class="sync-btn" id="signOutBtn" hidden>로그아웃</button>
+      </div>
+    </div>
+
     <div class="status" id="status"></div>
+
+    <div class="panel" id="authPanel" hidden>
+      <p class="sync-question">
+        로그인하면 클라우드로 기기 사이에서 목록을 옮길 수 있습니다.
+        목록은 계정별로 분리되어 다른 사람은 볼 수 없습니다.
+      </p>
+      <input type="email" class="sync-input" id="emailInput"
+             placeholder="이메일" autocomplete="username" spellcheck="false" />
+      <input type="password" class="sync-input" id="passwordInput"
+             placeholder="비밀번호 (6자 이상)" autocomplete="current-password" />
+      <div class="sync-answers">
+        <button type="button" class="sync-btn" id="signInBtn">로그인</button>
+        <button type="button" class="sync-btn" id="signUpBtn">가입</button>
+        <button type="button" class="sync-btn" id="closeAuthBtn">취소</button>
+      </div>
+    </div>
 
     <div class="input-row">
       <input type="text" id="itemInput" placeholder="아이템을 입력하세요" autocomplete="off" />
@@ -335,35 +401,17 @@
     <div class="empty" id="empty">아직 아이템이 없습니다.</div>
 
     <div class="sync">
-      <div class="sync-actions" id="cloudClosed">
-        <button type="button" class="sync-btn" id="cloudBtn">클라우드 동기화</button>
-      </div>
-
-      <div id="cloudLoading" hidden>
-        <p class="sync-question">클라우드에 연결하는 중…</p>
-      </div>
-
-      <div id="cloudSignedOut" hidden>
-        <p class="sync-question">
-          로그인하면 기기 사이에서 목록을 옮길 수 있습니다. 목록은 계정별로 분리되어 다른 사람은 볼 수 없습니다.
-        </p>
-        <input type="email" class="sync-input" id="emailInput"
-               placeholder="이메일" autocomplete="username" spellcheck="false" />
-        <input type="password" class="sync-input" id="passwordInput"
-               placeholder="비밀번호 (6자 이상)" autocomplete="current-password" />
-        <div class="sync-answers">
-          <button type="button" class="sync-btn" id="signInBtn">로그인</button>
-          <button type="button" class="sync-btn" id="signUpBtn">가입</button>
-          <button type="button" class="sync-btn" id="closeAuthBtn">닫기</button>
+      <div id="syncMain">
+        <p class="sync-label">파일로 주고받기</p>
+        <div class="sync-actions">
+          <button type="button" class="sync-btn" id="exportFileBtn">내보내기</button>
+          <button type="button" class="sync-btn" id="importFileBtn">가져오기</button>
         </div>
-      </div>
 
-      <div id="cloudSignedIn" hidden>
-        <p class="sync-question"><span id="accountEmail"></span> 계정으로 로그인됨</p>
-        <div class="sync-answers">
-          <button type="button" class="sync-btn" id="exportBtn">클라우드로 내보내기</button>
-          <button type="button" class="sync-btn" id="importBtn">클라우드에서 가져오기</button>
-          <button type="button" class="sync-btn" id="signOutBtn">로그아웃</button>
+        <p class="sync-label" id="cloudLabel" hidden>클라우드로 주고받기</p>
+        <div class="sync-actions" id="cloudActions" hidden>
+          <button type="button" class="sync-btn" id="exportCloudBtn">클라우드로 내보내기</button>
+          <button type="button" class="sync-btn" id="importCloudBtn">클라우드에서 가져오기</button>
         </div>
       </div>
 
@@ -374,13 +422,16 @@
           <button type="button" class="sync-btn" id="confirmNo">취소</button>
         </div>
       </div>
+
+      <input type="file" id="fileInput" accept="application/json,.json" hidden />
     </div>
   </div>
 
   <script>
     // ── 설정 ──────────────────────────────────────────────────────────────
     // 목록은 항상 이 브라우저의 localStorage에만 저장된다. 평소에는 네트워크를 쓰지 않는다.
-    // 클라우드는 '클라우드 동기화'를 눌렀을 때만 붙고, 그때 SDK를 처음 내려받는다.
+    // 파일 내보내기/가져오기는 로그인 없이 언제든 되고, 클라우드는 로그인해야 열린다.
+    // SDK는 로그인을 시도하거나 이전 세션을 복원할 때만 내려받는다.
     //
     // 아래 키는 publishable 키다. 브라우저 노출을 전제로 만들어진 키이며 공개해도 된다.
     // 접근 통제는 shopping_items의 RLS 정책(authenticated + user_id = auth.uid())이 담당한다.
@@ -391,6 +442,7 @@
     const SUPABASE_SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
     const CLOUD_TIMEOUT_MS = 15000;
     const STORAGE_KEY = 'shoppingList';
+    const SIGNED_IN_KEY = 'shoppingListSignedIn';
 
     const DEFAULT_STATUS = '이 브라우저에 저장됩니다';
 
@@ -402,20 +454,24 @@
     const statsEl = document.getElementById('stats');
     const emptyEl = document.getElementById('empty');
 
-    const cloudClosed = document.getElementById('cloudClosed');
-    const cloudBtn = document.getElementById('cloudBtn');
-    const cloudLoading = document.getElementById('cloudLoading');
-    const cloudSignedOut = document.getElementById('cloudSignedOut');
-    const cloudSignedIn = document.getElementById('cloudSignedIn');
+    const loginBtn = document.getElementById('loginBtn');
+    const accountEmail = document.getElementById('accountEmail');
+    const signOutBtn = document.getElementById('signOutBtn');
+    const authPanel = document.getElementById('authPanel');
     const emailInput = document.getElementById('emailInput');
     const passwordInput = document.getElementById('passwordInput');
     const signInBtn = document.getElementById('signInBtn');
     const signUpBtn = document.getElementById('signUpBtn');
     const closeAuthBtn = document.getElementById('closeAuthBtn');
-    const accountEmail = document.getElementById('accountEmail');
-    const exportBtn = document.getElementById('exportBtn');
-    const importBtn = document.getElementById('importBtn');
-    const signOutBtn = document.getElementById('signOutBtn');
+
+    const syncMain = document.getElementById('syncMain');
+    const exportFileBtn = document.getElementById('exportFileBtn');
+    const importFileBtn = document.getElementById('importFileBtn');
+    const fileInput = document.getElementById('fileInput');
+    const cloudLabel = document.getElementById('cloudLabel');
+    const cloudActions = document.getElementById('cloudActions');
+    const exportCloudBtn = document.getElementById('exportCloudBtn');
+    const importCloudBtn = document.getElementById('importCloudBtn');
     const syncConfirm = document.getElementById('syncConfirm');
     const syncQuestion = document.getElementById('syncQuestion');
     const confirmYes = document.getElementById('confirmYes');
@@ -426,17 +482,21 @@
 
     // ── 저장 ──────────────────────────────────────────────────────────────
 
+    // 이름이 문자열인 것만 받아들이고, id는 순서대로 다시 매겨 중복을 원천 차단한다.
+    function normalize(list) {
+      if (!Array.isArray(list)) return [];
+      return list
+        .filter((item) => item && typeof item.name === 'string' && item.name.trim())
+        .map((item, index) => ({
+          id: index + 1,
+          name: item.name,
+          checked: Boolean(item.checked),
+        }));
+    }
+
     function loadItems() {
       try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        if (!Array.isArray(saved)) return [];
-        return saved
-          .filter((item) => item && typeof item.name === 'string')
-          .map((item, index) => ({
-            id: index + 1,
-            name: item.name,
-            checked: Boolean(item.checked),
-          }));
+        return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)));
       } catch (e) {
         console.error('저장된 목록을 불러오지 못했습니다:', e);
         return [];
@@ -451,6 +511,12 @@
         console.error('목록을 저장하지 못했습니다:', e);
         setStatus('목록을 저장하지 못했습니다.', true);
       }
+    }
+
+    function replaceItems(list) {
+      items = normalize(list);
+      saveItems();
+      render();
     }
 
     // ── 상태 표시 ─────────────────────────────────────────────────────────
@@ -586,10 +652,96 @@
       clearBtn.textContent = `완료 ${done}개 삭제`;
     }
 
+    // ── 덮어쓰기 확인 ─────────────────────────────────────────────────────
+
+    let pendingSync = null;    // 'exportCloud' | 'importCloud' | 'importFile'
+    let pendingItems = null;   // 파일에서 읽어 둔 목록
+
+    function askConfirm(kind, question) {
+      pendingSync = kind;
+      syncQuestion.textContent = question;
+      syncMain.hidden = true;
+      syncConfirm.hidden = false;
+      confirmYes.focus();
+    }
+
+    function closeConfirm() {
+      pendingSync = null;
+      pendingItems = null;
+      syncConfirm.hidden = true;
+      syncMain.hidden = false;
+    }
+
+    confirmNo.addEventListener('click', () => {
+      closeConfirm();
+      exportFileBtn.focus();
+    });
+
+    confirmYes.addEventListener('click', () => {
+      const kind = pendingSync;
+      const list = pendingItems;
+      closeConfirm();
+      if (kind === 'exportCloud') pushToCloud();
+      else if (kind === 'importCloud') pullFromCloud();
+      else if (kind === 'importFile') {
+        replaceItems(list);
+        setStatus(`파일에서 ${items.length}개를 가져왔습니다.`);
+      }
+    });
+
+    // ── 파일로 주고받기 ───────────────────────────────────────────────────
+
+    function exportFile() {
+      const payload = {
+        app: 'shopping-list',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        items: items.map((item) => ({ name: item.name, checked: item.checked })),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `shopping-list-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setStatus(`${items.length}개를 파일로 내보냈습니다.`);
+    }
+
+    // 내보낸 형식과 목록만 든 배열 양쪽을 다 받아 준다.
+    function parseImported(text) {
+      const parsed = JSON.parse(text);
+      const list = Array.isArray(parsed) ? parsed : parsed && parsed.items;
+      const normalized = normalize(list);
+      if (!Array.isArray(list)) throw new Error('목록을 찾을 수 없습니다');
+      return normalized;
+    }
+
+    exportFileBtn.addEventListener('click', exportFile);
+
+    importFileBtn.addEventListener('click', () => {
+      fileInput.value = '';   // 같은 파일을 다시 골라도 change가 오도록 비운다
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      try {
+        const list = parseImported(await file.text());
+        pendingItems = list;
+        askConfirm('importFile', `이 브라우저의 목록을 지우고 파일의 ${list.length}개로 바꿉니다.`);
+      } catch (e) {
+        console.error('파일을 읽지 못했습니다:', e);
+        setStatus('파일을 읽지 못했습니다. 내보내기로 만든 JSON 파일인지 확인해 주세요.', true);
+      }
+    });
+
     // ── 클라우드 ──────────────────────────────────────────────────────────
 
-    let supabaseClient = null;   // 클라우드를 처음 열 때 한 번만 만든다
-    let pendingSync = null;      // 'export' | 'import'
+    let supabaseClient = null;   // 로그인하거나 세션을 복원할 때 한 번만 만든다
 
     // SDK가 window.supabase에 자기를 등록하므로 이 변수를 supabase로 두면 안 된다.
     // 최상위 let 선언이 같은 이름의 전역 프로퍼티 생성을 막아 SDK 로딩이 조용히 실패한다.
@@ -619,15 +771,6 @@
       return supabaseClient;
     }
 
-    // 'closed' | 'loading' | 'signedOut' | 'signedIn' | 'confirm' 중 하나만 보여 준다.
-    function showSyncState(state) {
-      cloudClosed.hidden = state !== 'closed';
-      cloudLoading.hidden = state !== 'loading';
-      cloudSignedOut.hidden = state !== 'signedOut';
-      cloudSignedIn.hidden = state !== 'signedIn';
-      syncConfirm.hidden = state !== 'confirm';
-    }
-
     // Supabase가 돌려주는 영문 메시지를 상황에 맞는 한국어로 바꾼다.
     function authMessage(e) {
       const raw = (e && e.message) || '';
@@ -645,56 +788,48 @@
       signUpBtn.disabled = busy;
     }
 
-    function setSyncBusy(busy) {
-      exportBtn.disabled = busy;
-      importBtn.disabled = busy;
-      signOutBtn.disabled = busy;
+    function setCloudBusy(busy) {
+      exportCloudBtn.disabled = busy;
+      importCloudBtn.disabled = busy;
     }
 
     function showSignedIn(user) {
+      localStorage.setItem(SIGNED_IN_KEY, '1');
       accountEmail.textContent = user.email;
-      showSyncState('signedIn');
+      accountEmail.hidden = false;
+      signOutBtn.hidden = false;
+      loginBtn.hidden = true;
+      authPanel.hidden = true;
+      cloudLabel.hidden = false;
+      cloudActions.hidden = false;
+      emailInput.value = '';
+      passwordInput.value = '';
     }
 
-    async function openCloud() {
-      showSyncState('loading');
-      try {
-        const client = await getClient();
-        const { data } = await withTimeout(client.auth.getSession(), '응답 시간이 초과되었습니다');
-        if (data.session) {
-          showSignedIn(data.session.user);
-        } else {
-          showSyncState('signedOut');
-          emailInput.focus();
-        }
-      } catch (e) {
-        console.error('클라우드에 연결하지 못했습니다:', e);
-        showSyncState('closed');
-        setStatus('클라우드에 연결하지 못했습니다. 네트워크를 확인해 주세요.', true);
-      }
+    function showSignedOut() {
+      localStorage.removeItem(SIGNED_IN_KEY);
+      accountEmail.hidden = true;
+      accountEmail.textContent = '';
+      signOutBtn.hidden = true;
+      loginBtn.hidden = false;
+      cloudLabel.hidden = true;
+      cloudActions.hidden = true;
     }
 
-    function readCredentials() {
+    async function signIn() {
       const email = emailInput.value.trim();
       const password = passwordInput.value;
       if (!email || !password) {
         setStatus('이메일과 비밀번호를 모두 입력해 주세요.', true);
-        return null;
+        return;
       }
-      return { email, password };
-    }
-
-    async function signIn() {
-      const creds = readCredentials();
-      if (!creds) return;
       setAuthBusy(true);
       setStatus('로그인하는 중…');
       try {
         const client = await getClient();
         const { data, error } = await withTimeout(
-          client.auth.signInWithPassword(creds), '응답 시간이 초과되었습니다');
+          client.auth.signInWithPassword({ email, password }), '응답 시간이 초과되었습니다');
         if (error) throw error;
-        passwordInput.value = '';
         showSignedIn(data.user);
         setStatus('로그인했습니다.');
       } catch (e) {
@@ -706,18 +841,22 @@
     }
 
     async function signUp() {
-      const creds = readCredentials();
-      if (!creds) return;
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+      if (!email || !password) {
+        setStatus('이메일과 비밀번호를 모두 입력해 주세요.', true);
+        return;
+      }
       setAuthBusy(true);
       setStatus('가입하는 중…');
       try {
         const client = await getClient();
-        const { data, error } = await withTimeout(client.auth.signUp(creds), '응답 시간이 초과되었습니다');
+        const { data, error } = await withTimeout(
+          client.auth.signUp({ email, password }), '응답 시간이 초과되었습니다');
         if (error) throw error;
 
         if (data.session) {
           // 확인 메일이 꺼져 있는 프로젝트에서는 가입 즉시 로그인된다.
-          passwordInput.value = '';
           showSignedIn(data.user);
           setStatus('가입하고 로그인했습니다.');
         } else {
@@ -733,35 +872,21 @@
     }
 
     async function signOut() {
-      setSyncBusy(true);
+      signOutBtn.disabled = true;
       try {
         const client = await getClient();
         await withTimeout(client.auth.signOut(), '응답 시간이 초과되었습니다');
       } catch (e) {
         console.error('로그아웃에 실패했습니다:', e);
       } finally {
-        setSyncBusy(false);
-        showSyncState('signedOut');
+        signOutBtn.disabled = false;
+        showSignedOut();
         setStatus('로그아웃했습니다. 목록은 그대로 남아 있습니다.');
       }
     }
 
-    function askConfirm(kind) {
-      pendingSync = kind;
-      syncQuestion.textContent = kind === 'export'
-        ? `클라우드의 기존 목록을 지우고 지금 목록 ${items.length}개로 덮어씁니다.`
-        : '이 브라우저의 목록을 지우고 클라우드 목록으로 바꿉니다.';
-      showSyncState('confirm');
-      confirmYes.focus();
-    }
-
-    function closeConfirm() {
-      pendingSync = null;
-      showSyncState('signedIn');
-    }
-
     async function pushToCloud() {
-      setSyncBusy(true);
+      setCloudBusy(true);
       setStatus('클라우드로 내보내는 중…');
       try {
         const client = await getClient();
@@ -797,12 +922,12 @@
         console.error('내보내기에 실패했습니다:', e);
         setStatus('내보내지 못했습니다. 로그인 상태와 연결을 확인해 주세요.', true);
       } finally {
-        setSyncBusy(false);
+        setCloudBusy(false);
       }
     }
 
     async function pullFromCloud() {
-      setSyncBusy(true);
+      setCloudBusy(true);
       setStatus('클라우드에서 가져오는 중…');
       try {
         const client = await getClient();
@@ -814,62 +939,67 @@
         );
         if (error) throw error;
 
-        items = data
-          .filter((row) => row && typeof row.name === 'string')
-          .map((row, index) => ({
-            id: index + 1,
-            name: row.name,
-            checked: Boolean(row.checked),
-          }));
-        saveItems();
-        render();
+        replaceItems(data);
         setStatus(`클라우드에서 ${items.length}개를 가져왔습니다.`);
       } catch (e) {
         console.error('가져오기에 실패했습니다:', e);
         setStatus('가져오지 못했습니다. 로그인 상태와 연결을 확인해 주세요.', true);
       } finally {
-        setSyncBusy(false);
+        setCloudBusy(false);
       }
     }
 
-    cloudBtn.addEventListener('click', openCloud);
-
-    signInBtn.addEventListener('click', signIn);
-    signUpBtn.addEventListener('click', signUp);
-    signOutBtn.addEventListener('click', signOut);
+    loginBtn.addEventListener('click', () => {
+      authPanel.hidden = false;
+      emailInput.focus();
+    });
 
     closeAuthBtn.addEventListener('click', () => {
       emailInput.value = '';
       passwordInput.value = '';
-      showSyncState('closed');
-      cloudBtn.focus();
+      authPanel.hidden = true;
+      loginBtn.focus();
     });
+
+    signInBtn.addEventListener('click', signIn);
+    signUpBtn.addEventListener('click', signUp);
+    signOutBtn.addEventListener('click', signOut);
 
     // 비밀번호 칸에서 Enter를 누르면 로그인으로 잇는다.
     passwordInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.isComposing) signIn();
     });
 
-    exportBtn.addEventListener('click', () => askConfirm('export'));
-    importBtn.addEventListener('click', () => askConfirm('import'));
-    confirmNo.addEventListener('click', () => {
-      closeConfirm();
-      exportBtn.focus();
-    });
-    confirmYes.addEventListener('click', () => {
-      const kind = pendingSync;
-      closeConfirm();
-      if (kind === 'export') pushToCloud();
-      else if (kind === 'import') pullFromCloud();
-    });
+    exportCloudBtn.addEventListener('click', () =>
+      askConfirm('exportCloud', `클라우드의 기존 목록을 지우고 지금 목록 ${items.length}개로 덮어씁니다.`));
+
+    importCloudBtn.addEventListener('click', () =>
+      askConfirm('importCloud', '이 브라우저의 목록을 지우고 클라우드 목록으로 바꿉니다.'));
 
     // ── 시작 ──────────────────────────────────────────────────────────────
+
+    // 이전에 로그인한 적이 있을 때만 SDK를 받아 세션을 되살린다.
+    // 로그인한 적 없는 방문자에게는 네트워크 요청이 한 건도 나가지 않는다.
+    async function restoreSession() {
+      try {
+        const client = await getClient();
+        const { data } = await withTimeout(client.auth.getSession(), '응답 시간이 초과되었습니다');
+        if (data.session) showSignedIn(data.session.user);
+        else showSignedOut();
+      } catch (e) {
+        console.error('세션을 확인하지 못했습니다:', e);
+        showSignedOut();
+        setStatus('로그인 상태를 확인하지 못했습니다. 다시 로그인해 주세요.', true);
+      }
+    }
 
     items = loadItems();
     render();
     setStatus(DEFAULT_STATUS);
-    showSyncState('closed');
+    showSignedOut();
     input.focus();
+
+    if (localStorage.getItem(SIGNED_IN_KEY) === '1') restoreSession();
   </script>
 </body>
 </html>
