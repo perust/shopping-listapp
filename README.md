@@ -72,9 +72,10 @@ NVIDIA API(`integrate.api.nvidia.com`)는 **CORS를 허용하지 않습니다.**
 ├── docs/
 │   ├── PRD.md                    # 제품 요구사항 및 기능 명세
 │   └── QA_REPORT.md              # QA 테스트 결과 및 결함 수정 내역
-├── index.html                    # 쇼핑 리스트 앱 (별도 프로젝트)
+├── index.html                    # GitHub Pages 루트 → shopping-list/ 로 보내는 리다이렉트
+├── .nojekyll                     # GitHub Pages의 Jekyll 처리 비활성화
 └── shopping-list/
-    └── index.html                # 쇼핑 리스트 앱 사본
+    └── index.html                # 쇼핑 리스트 앱 (별도 프로젝트, 단일 파일)
 ```
 
 ## 동작 방식
@@ -125,35 +126,37 @@ NVIDIA Nemotron 계열 `:free` 모델 6종. 프록시 없이 동작하지만 **�
 
 이 저장소에는 이전 학습 과제인 쇼핑 리스트 앱이 함께 들어 있습니다.
 
-브라우저에서 바로 사용할 수 있는 간단한 쇼핑 리스트 웹 앱입니다. 별도 백엔드 없이 LocalStorage에 데이터를 저장하며, 한글 입력 중 Enter 키가 중복 처리되지 않도록 IME 입력을 고려했습니다.
+브라우저에서 바로 사용할 수 있는 간단한 쇼핑 리스트 웹 앱입니다. 의존성 없는 단일 HTML 파일이며, 한글 입력 중 Enter 키가 중복 처리되지 않도록 IME 입력을 고려했습니다.
 
 ### 주요 기능
 
 - 쇼핑 아이템 추가
 - 아이템 삭제
 - 체크박스로 구매 완료 표시
+- 완료 항목 일괄 삭제
 - 전체/완료 아이템 수 표시
-- LocalStorage 기반 데이터 유지
-- 한글 IME 입력 호환
-- 모바일에서도 보기 쉬운 단일 페이지 UI
+- LocalStorage에 데이터 유지 (기본 동작, 네트워크 불필요)
+- Supabase로 목록 내보내기 / 가져오기 (기기 간 이동용, 누를 때만 동작)
+- 한글 IME 입력 호환 (macOS·Windows 모두 Enter 한 번에 추가)
+- 다크/라이트 테마, 키보드 접근성, 모바일 대응 단일 페이지 UI
 
 ### 실행 방법
 
-정적 HTML 앱이므로 브라우저에서 `index.html`을 직접 열면 됩니다.
+온라인에서 바로 쓸 수 있습니다 — **<https://perust.github.io/shopping-listapp/>**
+
+내려받아서 쓰려면 정적 HTML 앱이므로 브라우저에서 직접 열면 됩니다.
 
 ```bash
-git clone https://github.com/perust/shopping-listapp.git
-cd shopping-listapp
-open index.html
+open shopping-list/index.html
 ```
 
 또는 로컬 서버로 실행합니다.
 
 ```bash
-python -m http.server 8000
+python3 -m http.server 8000
 ```
 
-브라우저에서 `http://localhost:8000`에 접속합니다.
+브라우저에서 `http://localhost:8000/shopping-list/`에 접속합니다.
 
 ### 기술 스택
 
@@ -161,7 +164,57 @@ python -m http.server 8000
 - CSS
 - Vanilla JavaScript
 - LocalStorage API
+- Supabase JS SDK (내보내기/가져오기를 처음 누를 때만 동적 로드)
 
 ### 데이터 저장
 
-목록 데이터는 사용자의 브라우저 LocalStorage에 저장됩니다. 같은 브라우저/도메인에서 다시 열면 이전 목록이 유지됩니다.
+**목록은 항상 이 브라우저의 LocalStorage에만 저장됩니다.** 추가·삭제·체크는 전부 로컬에서 즉시 처리되므로 오프라인에서도 그대로 동작하고, 앱을 여는 동안 네트워크 요청이 한 건도 발생하지 않습니다.
+
+### 기기 간 이동 — 내보내기 / 가져오기
+
+Supabase는 저장소가 아니라 **기기 사이에서 목록을 옮기는 통로**로만 씁니다. 화면 아래 두 버튼을 누를 때만 통신합니다.
+
+| 버튼 | 동작 |
+|---|---|
+| 클라우드로 내보내기 | 지금 목록으로 클라우드를 **통째로 교체**합니다 (기존 클라우드 목록은 사라짐) |
+| 클라우드에서 가져오기 | 클라우드 목록으로 이 브라우저를 **통째로 교체**합니다 (기존 로컬 목록은 사라짐) |
+
+양쪽 다 덮어쓰기이므로 버튼 자리에서 한 번 더 확인을 받습니다. 진행 상황과 결과는 제목 아래에 표시되고, 실패하면 같은 자리에 빨간 글씨로 알려 줍니다.
+
+내보내기는 **새 행을 먼저 넣고 기존 행을 나중에 지우는** 순서로 동작합니다. 중간에 실패해도 목록이 사라지는 대신 중복이 남을 뿐이라, 다시 내보내면 복구됩니다.
+
+### Supabase 설정
+
+**연결 정보는 소스에 넣지 않습니다.** 이 페이지는 공개 URL로 서비스되므로, 키를 파일에 박아 두면 누구나 목록을 읽거나 덮어쓸 수 있기 때문입니다.
+
+대신 화면 아래 `클라우드 연결 설정`에서 프로젝트 URL과 publishable(anon) 키를 넣습니다. 입력값은 **그 브라우저의 LocalStorage에만** 저장되고 어디로도 전송되지 않으며, `연결` 버튼을 누르면 실제로 조회가 되는지 먼저 확인한 뒤에 저장합니다. `연결 해제`를 누르면 연결 정보만 지워지고 목록은 남습니다.
+
+설정하지 않은 방문자에게는 연결 설정 버튼만 보이고, 앱은 완전한 로컬 전용으로 동작합니다.
+
+넣는 키는 반드시 **publishable(anon) 키**여야 합니다. 브라우저 노출을 전제로 만들어진 키이고, 실제 접근 통제는 RLS 정책이 담당합니다. secret 키는 절대 넣지 마세요.
+
+쓸 프로젝트에는 아래 SQL을 미리 실행해 두어야 합니다.
+
+```sql
+create table public.shopping_items (
+  id bigint generated always as identity primary key,
+  name text not null,
+  checked boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index shopping_items_created_at_idx on public.shopping_items (created_at);
+
+alter table public.shopping_items enable row level security;
+
+create policy shopping_items_anon_all
+  on public.shopping_items for all to anon
+  using (true) with check (true);
+
+grant select, insert, update, delete on public.shopping_items to anon;
+revoke truncate, references, trigger on public.shopping_items from anon, authenticated;
+```
+
+마지막 `revoke`가 중요합니다. `TRUNCATE`는 RLS를 우회하므로, 남겨 두면 공개 키만 가지고도 테이블 전체를 비울 수 있습니다.
+
+로그인 없이 쓰는 구조라 이 정책은 키를 가진 사람 누구에게나 읽기/쓰기를 허용합니다. 개인 학습용 전제이며, 잠그려면 Supabase Auth를 붙이고 정책을 `auth.uid()` 기준으로 바꿔야 합니다.
