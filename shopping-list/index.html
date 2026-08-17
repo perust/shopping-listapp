@@ -178,6 +178,49 @@
       outline-offset: 2px;
     }
 
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      background: none;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+    }
+
+    .filter:hover {
+      color: var(--text-body);
+      border-color: var(--text-muted);
+    }
+
+    .filter.is-active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .filter:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .filter-count {
+      opacity: 0.7;
+      font-variant-numeric: tabular-nums;
+    }
+
     ul {
       list-style: none;
     }
@@ -235,8 +278,16 @@
       outline-offset: 2px;
     }
 
-    li .name {
+    li .item-body {
       flex: 1;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 8px;
+      min-width: 0;
+    }
+
+    li .name {
       font-size: 16px;
       color: var(--text-body);
       cursor: pointer;
@@ -246,6 +297,28 @@
     li.checked .name {
       text-decoration: line-through;
       color: var(--text-muted);
+    }
+
+    /* 항목에 붙은 태그. 누르면 그 태그로 필터링한다. */
+    li .tag {
+      padding: 2px 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: none;
+      border-radius: 999px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    li .tag:hover {
+      text-decoration: underline;
+    }
+
+    li .tag:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     li .delete-btn {
@@ -406,7 +479,7 @@
     <div class="status" id="status"></div>
 
     <div class="input-row">
-      <input type="text" id="itemInput" placeholder="아이템을 입력하세요" autocomplete="off" />
+      <input type="text" id="itemInput" placeholder="아이템을 입력하세요 (#태그 가능)" autocomplete="off" />
       <button type="button" id="addBtn">추가</button>
     </div>
 
@@ -414,6 +487,8 @@
       <span class="stats" id="stats"></span>
       <button type="button" class="clear-btn" id="clearBtn" hidden></button>
     </div>
+
+    <div class="filters" id="filters" hidden></div>
 
     <ul id="list"></ul>
     <div class="empty" id="empty">아직 아이템이 없습니다.</div>
@@ -510,6 +585,7 @@
     const statusEl = document.getElementById('status');
     const listEl = document.getElementById('list');
     const statsEl = document.getElementById('stats');
+    const filtersEl = document.getElementById('filters');
     const emptyEl = document.getElementById('empty');
 
     const syncMain = document.getElementById('syncMain');
@@ -540,10 +616,24 @@
 
     let items = [];
     let statusTimer = null;
+    let activeTag = '';   // 빈 문자열이면 전체 보기
 
     // ── 저장 ──────────────────────────────────────────────────────────────
 
+    // 문자열만 남기고 다듬어 중복을 없앤다. 길이를 잘라 한 줄이 깨지지 않게 한다.
+    function normalizeTags(value) {
+      if (!Array.isArray(value)) return [];
+      const out = [];
+      value.forEach((tag) => {
+        if (typeof tag !== 'string') return;
+        const clean = tag.trim().slice(0, 20);
+        if (clean && !out.includes(clean)) out.push(clean);
+      });
+      return out;
+    }
+
     // 이름이 문자열인 것만 받아들이고, id는 순서대로 다시 매겨 중복을 원천 차단한다.
+    // 태그가 없던 시절에 내보낸 파일도 그대로 읽히도록 tags는 없으면 빈 배열로 둔다.
     function normalize(list) {
       if (!Array.isArray(list)) return [];
       return list
@@ -552,7 +642,18 @@
           id: index + 1,
           name: item.name,
           checked: Boolean(item.checked),
+          tags: normalizeTags(item.tags),
         }));
+    }
+
+    // "우유 2L #유제품 #냉장" → { name: '우유 2L', tags: ['유제품', '냉장'] }
+    function parseInput(raw) {
+      const tags = [];
+      const name = raw
+        .replace(/#([^\s#]+)/g, (_, tag) => { tags.push(tag); return ' '; })
+        .replace(/\s+/g, ' ')
+        .trim();
+      return { name, tags: normalizeTags(tags) };
     }
 
     function loadItems() {
@@ -595,11 +696,15 @@
     // ── 목록 조작 ─────────────────────────────────────────────────────────
 
     function addItem() {
-      const name = input.value.trim();
+      const { name, tags } = parseInput(input.value);
       if (!name) return;
       const id = items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
-      items.push({ id, name, checked: false });
+      items.push({ id, name, checked: false, tags });
       input.value = '';
+
+      // 필터가 켜져 있는데 새 항목이 거기 안 걸리면 방금 넣은 게 안 보인다. 전체로 되돌린다.
+      if (activeTag && !tags.includes(activeTag)) activeTag = '';
+
       saveItems();
       render();
       input.focus();
@@ -612,8 +717,9 @@
       if (refocusInput) input.focus();
     }
 
+    // 필터가 켜져 있으면 화면에 보이는 것만 지운다. 안 보이는 항목이 사라지면 놀라기 때문이다.
     function clearCompleted() {
-      const ids = items.filter((item) => item.checked).map((item) => item.id);
+      const ids = visibleItems().filter((item) => item.checked).map((item) => item.id);
       if (ids.length === 0) return;
       // 버튼 자체가 사라지므로 포커스를 입력창으로 옮긴다.
       removeItems(ids, true);
@@ -659,6 +765,12 @@
     });
 
     listEl.addEventListener('click', (e) => {
+      const chip = e.target.closest('.tag');
+      if (chip) {
+        setFilter(chip.dataset.tag);
+        return;
+      }
+
       const btn = e.target.closest('.delete-btn');
       if (!btn) return;
       const id = Number(btn.closest('li').dataset.id);
@@ -668,10 +780,29 @@
 
     // ── 렌더링 ────────────────────────────────────────────────────────────
 
+    // 지금 필터에 걸리는 항목만 돌려준다. activeTag가 빈 문자열이면 전체다.
+    function visibleItems() {
+      if (!activeTag) return items;
+      return items.filter((item) => item.tags.includes(activeTag));
+    }
+
+    function tagCounts() {
+      const counts = new Map();
+      items.forEach((item) => {
+        item.tags.forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
+      });
+      return counts;
+    }
+
     function render() {
+      // 걸어 둔 태그가 마지막 항목과 함께 사라졌을 수 있다. 목록을 그리기 전에 전체로 되돌려야
+      // 목록과 통계가 어긋나지 않는다.
+      const counts = tagCounts();
+      if (activeTag && !counts.has(activeTag)) activeTag = '';
+
       listEl.innerHTML = '';
 
-      items.forEach((item) => {
+      visibleItems().forEach((item) => {
         const li = document.createElement('li');
         li.dataset.id = item.id;
         if (item.checked) li.classList.add('checked');
@@ -684,11 +815,26 @@
         checkbox.id = checkboxId;
         checkbox.checked = item.checked;
 
+        const body = document.createElement('div');
+        body.className = 'item-body';
+
         // label을 쓰면 이름을 눌러도 체크가 되고, 스크린리더가 항목 이름을 읽어 준다.
         const label = document.createElement('label');
         label.className = 'name';
         label.htmlFor = checkboxId;
         label.textContent = item.name;
+        body.appendChild(label);
+
+        // 태그는 label 바깥에 둔다. 안에 넣으면 태그를 눌러도 체크가 토글돼 버린다.
+        item.tags.forEach((tag) => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'tag';
+          chip.dataset.tag = tag;
+          chip.textContent = tag;
+          chip.setAttribute('aria-label', `${tag} 태그만 보기`);
+          body.appendChild(chip);
+        });
 
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
@@ -696,22 +842,60 @@
         deleteBtn.textContent = '×';
         deleteBtn.setAttribute('aria-label', `${item.name} 삭제`);
 
-        li.append(checkbox, label, deleteBtn);
+        li.append(checkbox, body, deleteBtn);
         listEl.appendChild(li);
       });
 
+      renderFilters(counts);
       updateStats();
     }
 
+    function renderFilters(counts) {
+      // 태그를 하나도 안 쓰면 필터 줄 자체를 감춰 화면을 비워 둔다.
+      filtersEl.hidden = counts.size === 0;
+      filtersEl.innerHTML = '';
+      if (counts.size === 0) return;
+
+      const entries = [['', items.length], ...[...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ko'))];
+      entries.forEach(([tag, count]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'filter' + (tag === activeTag ? ' is-active' : '');
+        btn.dataset.tag = tag;
+        btn.setAttribute('aria-pressed', tag === activeTag ? 'true' : 'false');
+        btn.append(tag || '전체');
+
+        const badge = document.createElement('span');
+        badge.className = 'filter-count';
+        badge.textContent = count;
+        btn.appendChild(badge);
+
+        filtersEl.appendChild(btn);
+      });
+    }
+
     function updateStats() {
-      const done = items.filter((item) => item.checked).length;
-      statsEl.textContent = items.length === 0 ? '' : `총 ${items.length}개 중 ${done}개 완료`;
-      emptyEl.style.display = items.length === 0 ? 'block' : 'none';
+      const shown = visibleItems();
+      const done = shown.filter((item) => item.checked).length;
+      statsEl.textContent = shown.length === 0 ? '' : `총 ${shown.length}개 중 ${done}개 완료`;
+
+      // 필터를 미리 정리해 두므로, 보이는 게 없다는 건 목록 자체가 비었다는 뜻이다.
+      emptyEl.style.display = shown.length === 0 ? 'block' : 'none';
 
       // 지울 게 있을 때만 일괄 삭제 버튼을 보여 준다.
       clearBtn.hidden = done === 0;
       clearBtn.textContent = `완료 ${done}개 삭제`;
     }
+
+    function setFilter(tag) {
+      activeTag = tag;
+      render();
+    }
+
+    filtersEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter');
+      if (btn) setFilter(btn.dataset.tag);
+    });
 
     // ── 화면 전환 ─────────────────────────────────────────────────────────
 
@@ -757,7 +941,7 @@
         app: 'shopping-list',
         version: 1,
         exportedAt: new Date().toISOString(),
-        items: items.map((item) => ({ name: item.name, checked: item.checked })),
+        items: items.map((item) => ({ name: item.name, checked: item.checked, tags: item.tags })),
       };
     }
 
