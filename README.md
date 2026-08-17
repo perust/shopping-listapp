@@ -136,9 +136,8 @@ NVIDIA Nemotron 계열 `:free` 모델 6종. 프록시 없이 동작하지만 **�
 - 완료 항목 일괄 삭제
 - 전체/완료 아이템 수 표시
 - LocalStorage에 데이터 유지 (기본 동작, 네트워크 불필요)
-- JSON 파일로 내보내기 / 가져오기 (로그인 없이, 오프라인에서도 동작)
-- 로그인 후 Supabase로 내보내기 / 가져오기 (기기 간 이동용)
-- 계정별 목록 분리 — RLS로 본인 행만 접근 가능
+- JSON 파일로 내보내기 / 가져오기 (오프라인에서도 동작)
+- 백업 코드로 기기 간 이동 — 24시간 유효, 한 번 가져가면 소멸
 - 한글 IME 입력 호환 (macOS·Windows 모두 Enter 한 번에 추가)
 - 다크/라이트 테마, 키보드 접근성, 모바일 대응 단일 페이지 UI
 
@@ -164,10 +163,9 @@ python3 -m http.server 8000
 
 - HTML
 - CSS
-- Vanilla JavaScript
+- Vanilla JavaScript (외부 스크립트·빌드 도구 없음)
 - LocalStorage API
-- Supabase Auth + Postgres RLS
-- Supabase JS SDK (`클라우드 동기화`를 처음 누를 때만 동적 로드)
+- Supabase Postgres — RPC 함수 3개만 사용
 
 ### 데이터 저장
 
@@ -175,68 +173,123 @@ python3 -m http.server 8000
 
 ### 내보내기 / 가져오기
 
-목록을 옮기는 방법이 두 가지입니다. 화면 맨 아래에 있습니다.
+맨 아래 `내보내기` / `가져오기`를 누르면 **파일**과 **클라우드** 중에서 고릅니다.
 
-**파일로 주고받기** — 로그인이 필요 없습니다.
+**파일** — JSON 파일로 저장하고 다시 불러옵니다. 계정도 네트워크도 필요 없습니다.
 
-| 버튼 | 동작 |
+| | 동작 |
 |---|---|
-| 내보내기 | 지금 목록을 `shopping-list-YYYY-MM-DD.json` 파일로 저장 |
-| 가져오기 | 그 파일을 골라 이 브라우저의 목록을 **통째로 교체** |
+| 내보내기 → 파일로 | 지금 목록을 `shopping-list-YYYY-MM-DD.json`으로 저장 |
+| 가져오기 → 파일에서 | 그 파일을 골라 이 브라우저의 목록을 **통째로 교체** |
 
-**클라우드로 주고받기** — 우상단 `로그인` 뒤에만 나타납니다.
+**클라우드** — 저장소가 아니라 **1회성 전송함**입니다.
 
-| 버튼 | 동작 |
+| | 동작 |
 |---|---|
-| 클라우드로 내보내기 | 지금 목록으로 내 클라우드 목록을 **통째로 교체** |
-| 클라우드에서 가져오기 | 내 클라우드 목록으로 이 브라우저를 **통째로 교체** |
+| 내보내기 → 클라우드로 | 목록을 올리고 `XXXX-XXXX-XXXX` 형식의 **백업 코드**를 발급 |
+| 가져오기 → 클라우드에서 | 그 코드를 붙여넣어 목록을 받고, **서버에서는 즉시 삭제** |
+
+내보낸 뒤에는 화면에 `클라우드 내보내기 상태입니다 · 23시간 47분 남음`과 코드가 계속 떠 있고, `코드 복사` 버튼으로 다시 복사할 수 있습니다. 다음 두 경우에 코드가 사라집니다.
+
+- 누군가 그 코드로 **가져간 순간** — 한 번만 쓸 수 있습니다
+- **24시간이 지난 뒤** — 서버에서도 함께 삭제됩니다
+
+이미 쓴 코드나 만료된 코드를 넣으면 목록을 건드리지 않고 안내만 띄웁니다. 내보낸 기기에서 페이지를 열면 그 코드가 아직 유효한지 한 번 확인해서, 이미 소진됐으면 화면 표시를 정리합니다.
 
 가져오기는 모두 덮어쓰기이므로 버튼 자리에서 한 번 더 확인을 받습니다. 진행 상황과 결과는 제목 아래에 표시되고, 실패하면 같은 자리에 빨간 글씨로 알려 줍니다.
 
-클라우드 내보내기는 **새 행을 먼저 넣고 기존 행을 나중에 지우는** 순서로 동작합니다. 중간에 실패해도 목록이 사라지는 대신 중복이 남을 뿐이라, 다시 내보내면 복구됩니다.
+### 접근 통제
 
-파일 가져오기는 내보내기가 만든 형식(`{ items: [...] }`)과 목록만 든 배열 양쪽을 받아들이고, 형식이 어긋나면 목록을 건드리지 않고 안내만 띄웁니다.
+**코드 자체가 열쇠입니다.** 로그인이 없는 대신, 코드를 모르면 아무것도 할 수 없게 만들었습니다.
 
-### 로그인과 접근 통제
+소스에 들어 있는 키는 **publishable 키**로, 브라우저 노출을 전제로 만들어진 공개용 키입니다.
 
-클라우드로 주고받으려면 우상단 `로그인`에서 이메일·비밀번호로 로그인해야 합니다. **목록은 계정별로 완전히 분리**되어 다른 사람의 목록은 조회조차 되지 않습니다. 파일로 주고받는 쪽은 로그인과 무관하게 언제든 쓸 수 있습니다.
+- `transfers` 테이블은 `anon` 권한을 전부 회수해 두어 **직접 조회가 `401`** 입니다. 즉 남의 코드 목록을 훑어볼 수 없습니다.
+- 접근은 코드를 인자로 받는 함수 세 개(`create_transfer` / `claim_transfer` / `transfer_status`)로만 열려 있습니다.
+- 코드는 48비트 난수(12자리 16진수)라 24시간 안에 찍어 맞히기 어렵습니다.
 
-소스에 들어 있는 키는 **publishable 키**로, 브라우저 노출을 전제로 만들어진 공개용 키입니다. 접근 통제는 키가 아니라 RLS 정책이 담당합니다.
+민감한 정보는 넣지 마세요. 코드를 가진 사람은 누구나 그 목록을 받을 수 있습니다.
 
-- 로그인하지 않은 상태(`anon`)에는 테이블 권한 자체가 없어 조회·삽입·삭제가 모두 `401 permission denied`입니다.
-- 로그인한 뒤에도 `user_id = auth.uid()` 조건에 맞는 **자기 행만** 보이고 고칠 수 있습니다.
+secret 키는 절대 넣지 마세요. 그 키는 RLS와 권한 설정을 모두 우회합니다.
 
-secret 키는 절대 넣지 마세요. 그 키는 RLS를 우회합니다.
+### Supabase 설정
 
-쓸 프로젝트에는 아래 SQL을 미리 실행해 두어야 합니다.
+쓸 프로젝트에 아래 SQL을 실행하고, 파일 상단 `SUPABASE_URL` / `SUPABASE_ANON_KEY`를 바꾸면 됩니다.
 
 ```sql
-create table public.shopping_items (
-  id bigint generated always as identity primary key,
-  name text not null,
-  checked boolean not null default false,
+create table public.transfers (
+  code text primary key,
+  payload jsonb not null,
   created_at timestamptz not null default now(),
-  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade
+  expires_at timestamptz not null default now() + interval '24 hours'
 );
 
-create index shopping_items_created_at_idx on public.shopping_items (created_at);
-create index shopping_items_user_id_idx on public.shopping_items (user_id);
+create index transfers_expires_at_idx on public.transfers (expires_at);
 
-alter table public.shopping_items enable row level security;
+alter table public.transfers enable row level security;
+revoke all on public.transfers from anon, authenticated;
 
-create policy shopping_items_owner
-  on public.shopping_items for all to authenticated
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
+create or replace function public.normalize_transfer_code(p_code text)
+returns text language sql immutable as $fn$
+  select upper(regexp_replace(coalesce(p_code, ''), '[^0-9A-Za-z]', '', 'g'));
+$fn$;
 
-revoke all on public.shopping_items from anon;
-grant select, insert, update, delete on public.shopping_items to authenticated;
+create or replace function public.create_transfer(p_payload jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $fn$
+declare
+  v_code text;
+  v_expires timestamptz;
+begin
+  if p_payload is null or jsonb_typeof(p_payload) <> 'object' then
+    raise exception 'invalid payload';
+  end if;
+  if length(p_payload::text) > 200000 then
+    raise exception 'payload too large';
+  end if;
+
+  delete from public.transfers t where t.expires_at < now();
+
+  loop
+    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 12));
+    exit when not exists (select 1 from public.transfers t where t.code = v_code);
+  end loop;
+
+  insert into public.transfers (code, payload) values (v_code, p_payload)
+  returning expires_at into v_expires;
+
+  return jsonb_build_object('code', v_code, 'expires_at', v_expires);
+end;
+$fn$;
+
+create or replace function public.claim_transfer(p_code text)
+returns jsonb language plpgsql security definer set search_path = public as $fn$
+declare
+  v_payload jsonb;
+begin
+  delete from public.transfers t where t.expires_at < now();
+
+  delete from public.transfers t
+   where t.code = public.normalize_transfer_code(p_code)
+     and t.expires_at > now()
+  returning t.payload into v_payload;
+
+  return v_payload;
+end;
+$fn$;
+
+create or replace function public.transfer_status(p_code text)
+returns timestamptz language sql security definer stable set search_path = public as $fn$
+  select t.expires_at from public.transfers t
+   where t.code = public.normalize_transfer_code(p_code)
+     and t.expires_at > now();
+$fn$;
+
+revoke all on function public.create_transfer(jsonb) from public;
+revoke all on function public.claim_transfer(text) from public;
+revoke all on function public.transfer_status(text) from public;
+grant execute on function public.create_transfer(jsonb) to anon;
+grant execute on function public.claim_transfer(text) to anon;
+grant execute on function public.transfer_status(text) to anon;
 ```
 
-`user_id`는 컬럼 기본값 `auth.uid()`가 채우므로 클라이언트가 따로 보내지 않습니다.
-
-`revoke all ... from anon`이 중요합니다. RLS 정책만으로도 막히지만, 권한까지 걷어내면 `TRUNCATE`처럼 **RLS를 우회하는 명령**까지 함께 막힙니다.
-
-대시보드에서 **Authentication → URL Configuration → Site URL**을 배포 주소로 맞춰야 가입 확인 메일의 링크가 앱으로 돌아옵니다.
-
-혼자 쓰는 앱이라면 본인 가입을 마친 뒤 **Sign In / Providers → Allow new users to sign up**을 꺼서 남이 가입하지 못하게 막는 편이 좋습니다.
+만료된 행은 `create_transfer`와 `claim_transfer`가 호출될 때마다 함께 지우므로 별도 스케줄러가 필요 없습니다.
