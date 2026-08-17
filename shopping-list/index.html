@@ -18,6 +18,13 @@
       --accent-soft: rgba(67, 97, 238, 0.08);
       --danger: #e74c3c;
       --shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+      /* 태그 색. 이름으로 해시해 고르므로 같은 태그는 어느 기기에서나 같은 색이 된다.
+         네 가지만 쓰는 이유는 주석 아래 tagColorClass 참고. */
+      --tag-0-bg: #2876d4; --tag-0-ink: #ffffff;
+      --tag-1-bg: #eda100; --tag-1-ink: #0b0b0b;
+      --tag-2-bg: #e87ba4; --tag-2-ink: #0b0b0b;
+      --tag-3-bg: #008300; --tag-3-ink: #ffffff;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -34,8 +41,19 @@
         --accent-soft: rgba(107, 131, 245, 0.12);
         --danger: #ff6b5b;
         --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+
+        /* 어두운 배경에 맞춰 다시 고른 같은 네 색조. 자동 반전이 아니다. */
+        --tag-0-bg: #3987e5; --tag-0-ink: #0b0b0b;
+        --tag-1-bg: #c98500; --tag-1-ink: #0b0b0b;
+        --tag-2-bg: #d55181; --tag-2-ink: #0b0b0b;
+        --tag-3-bg: #008300; --tag-3-ink: #ffffff;
       }
     }
+
+    .c0 { --tag-bg: var(--tag-0-bg); --tag-ink: var(--tag-0-ink); }
+    .c1 { --tag-bg: var(--tag-1-bg); --tag-ink: var(--tag-1-ink); }
+    .c2 { --tag-bg: var(--tag-2-bg); --tag-ink: var(--tag-2-ink); }
+    .c3 { --tag-bg: var(--tag-3-bg); --tag-ink: var(--tag-3-ink); }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -147,8 +165,8 @@
       align-items: center;
       gap: 4px;
       padding: 4px 5px 4px 10px;
-      background: var(--accent-soft);
-      color: var(--accent);
+      background: var(--tag-bg);
+      color: var(--tag-ink);
       border-radius: 999px;
       font-size: 13px;
     }
@@ -173,12 +191,12 @@
 
     .pending-tag button:hover {
       opacity: 1;
-      background: var(--accent);
-      color: #fff;
+      background: var(--tag-ink);
+      color: var(--tag-bg);
     }
 
     .pending-tag button:focus-visible {
-      outline: 2px solid var(--accent);
+      outline: 2px solid var(--tag-ink);
       outline-offset: 1px;
       opacity: 1;
     }
@@ -279,10 +297,24 @@
       border-color: var(--text-muted);
     }
 
+    /* 태그 필터는 자기 색 점을 달고, 켜지면 그 색으로 채워진다. '전체'는 색이 없어 기본색으로 떨어진다. */
+    .filter::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--tag-bg, var(--accent));
+      flex-shrink: 0;
+    }
+
     .filter.is-active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
+      background: var(--tag-bg, var(--accent));
+      border-color: var(--tag-bg, var(--accent));
+      color: var(--tag-ink, #fff);
+    }
+
+    .filter.is-active::before {
+      display: none;
     }
 
     .filter:focus-visible {
@@ -376,8 +408,8 @@
     /* 항목에 붙은 태그. 누르면 그 태그로 필터링한다. */
     li .tag {
       padding: 2px 8px;
-      background: var(--accent-soft);
-      color: var(--accent);
+      background: var(--tag-bg);
+      color: var(--tag-ink);
       border: none;
       border-radius: 999px;
       font-size: 12px;
@@ -776,6 +808,34 @@
       }
     }
 
+    // ── 태그 색 ───────────────────────────────────────────────────────────
+
+    // 이름을 해시해 색을 고른다. 순서가 아니라 이름으로 정하므로 같은 태그는
+    // 목록에서든 필터에서든 다른 기기에서든 늘 같은 색이다.
+    //
+    // 색이 네 가지뿐인 이유: 서로 구분되는 색은 생각보다 빨리 바닥난다.
+    // 검증기(dataviz)로 재보니 임의의 두 태그가 나란히 놓이는 조건에서
+    // 다섯 색 이상은 색각 이상 기준도, 정상 시야 기준(ΔE 15)도 통과하지 못했다.
+    // 태그는 이름이 항상 함께 보이므로 색은 훑어보기용 보조 신호다.
+    // 그래서 통과한 네 색만 쓰고, 그 이상은 색을 재사용한다.
+    const TAG_COLORS = 4;
+
+    function tagColorClass(tag) {
+      let hash = 2166136261;
+      for (let i = 0; i < tag.length; i++) {
+        hash ^= tag.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      // 마지막 섞기. 이게 없으면 코드포인트가 몰려 있는 한글 태그가 한 색으로 쏠린다
+      // (실제로 태그 20개 중 16개가 같은 색이 되었다).
+      hash ^= hash >>> 16;
+      hash = Math.imul(hash, 2246822507);
+      hash ^= hash >>> 13;
+      hash = Math.imul(hash, 3266489909);
+      hash ^= hash >>> 16;
+      return `c${(hash >>> 0) % TAG_COLORS}`;
+    }
+
     // ── 태그 입력 ─────────────────────────────────────────────────────────
 
     function addPendingTag(raw) {
@@ -794,7 +854,7 @@
       pendingTagsEl.innerHTML = '';
       pendingTags.forEach((tag) => {
         const chip = document.createElement('span');
-        chip.className = 'pending-tag';
+        chip.className = `pending-tag ${tagColorClass(tag)}`;
         chip.append(tag);
 
         const remove = document.createElement('button');
@@ -1015,7 +1075,7 @@
         item.tags.forEach((tag) => {
           const chip = document.createElement('button');
           chip.type = 'button';
-          chip.className = 'tag';
+          chip.className = `tag ${tagColorClass(tag)}`;
           chip.dataset.tag = tag;
           chip.textContent = tag;
           chip.setAttribute('aria-label', `${tag} 태그만 보기`);
@@ -1046,7 +1106,8 @@
       entries.forEach(([tag, count]) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'filter' + (tag === activeTag ? ' is-active' : '');
+        btn.className = ['filter', tag ? tagColorClass(tag) : '', tag === activeTag ? 'is-active' : '']
+          .filter(Boolean).join(' ');
         btn.dataset.tag = tag;
         btn.setAttribute('aria-pressed', tag === activeTag ? 'true' : 'false');
         btn.append(tag || '전체');
